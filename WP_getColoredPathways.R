@@ -2,7 +2,7 @@
 ##
 ## Script name: WP_getColoredPathways.R
 ##
-## Purpose of script: Color specific data nodes in a WikiPathways pathway
+## Purpose of script: Color specific data nodes in a WikiPathways pathway using identifiers or GraphIds
 ##
 ## Author: Martina Kutmon
 ##
