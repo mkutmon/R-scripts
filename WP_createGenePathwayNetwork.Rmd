@@ -1,0 +1,75 @@
+# Script and session info
+
+Script name: PathwayVisualization.Rmd
+
+Script purpose: Pathway loading + preparing for merge
+
+Author: Martina Kutmon
+
+Date Created: 2020-04-08
+
+## Session info:
+R version 3.6.3 (2020-02-29)
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+Running under: Windows 10 x64 (build 17763)
+Packages: rstudioapi v0.11, RCy3 v2.6.3, rWikiPathways v1.6.1, clusterProfiler v3.14.3, tidyr v1.0.2, dplyr v0.8.4, biomaRt v2.42.0
+
+Cytoscape version 3.7.2, WikiPathways app version 3.3.7
+
+# Install required packages
+```{r}
+# install.packages("BiocManager")
+# BiocManager::install(c("rstudioapi","RCy3", "rWikiPathways", "clusterProfiler", "tidyr", "dplyr", "biomaRt"))
+library(rstudioapi)
+library(RCy3)
+library(rWikiPathways)
+library(clusterProfiler)
+library(tidyr)
+library(dplyr)
+library(biomaRt)
+```
+
+# Set up environment
+```{r}
+#clear workspace and set string as factors to false
+rm(list=ls())
+options(stringsAsFactors = F)
+
+#set working directroy
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+```
+
+# Get WP pathway-gene associations
+```{r}
+wp.hs.gmt <- rWikiPathways::downloadPathwayArchive(organism="Homo sapiens", format = "gmt")
+wp2gene <- clusterProfiler::read.gmt(wp.hs.gmt)
+wp2gene <- wp2gene %>% tidyr::separate(ont, c("name","version","wpid","org"), "%")
+wpid2gene <- wp2gene %>% dplyr::select(wpid,gene) #TERM2GENE
+wpid2name <- wp2gene %>% dplyr::select(wpid,name) #TERM2NAME
+```
+
+# Filter pathways of interest
+```{r}
+pathways <- c("WP45","WP179", "WP707")
+selected_wpid2gene <- wpid2gene[wpid2gene$wpid %in% pathways,]
+colnames(selected_wpid2gene) <- c("source","target")
+```
+
+# Create gene-pathway network
+```{r}
+RCy3::cytoscapePing()
+suid <- RCy3::createNetworkFromDataFrames(edges=selected_wpid2gene, title="gene-pathway network", collection = "gene-pathway network")
+wpid2name['Type'] <- "pathway"
+RCy3::loadTableData(wpid2name, data.key.column = "wpid", table.key.column = "id")
+
+ensembl <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl", mirror = "useast")
+genes <- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol', 'entrezgene_id'), filters = 'entrezgene_id', values = selected_wpid2gene$target, mart = ensembl)
+colnames(genes) <- c("Ensembl","name","id")
+RCy3::loadTableData(genes, data.key.column = "id", table.key.column = "id")
+
+RCy3::setNodeColorMapping("Type", table.column.values = "pathway", colors="#f7b5b8", mapping.type="d", default.color="#a1c8ed")
+RCy3::setNodeShapeDefault('ELLIPSE')
+RCy3::setNodeSizeDefault(30)
+
+RCy3::toggleGraphicsDetails()
+```
